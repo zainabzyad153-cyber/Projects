@@ -1,0 +1,112 @@
+from groq import Groq
+client=Groq(api_key='api')
+import requests
+from bs4 import BeautifulSoup
+import json
+import time
+print('start')
+headers = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;"
+        "q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+    ),
+    "Accept-Language": "ar-IQ,ar;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+}
+url='https://www.drugs.com/dosage/z/'
+relget2 = [] 
+def Names_of_medicines(url,headers,relget2):
+    get=requests.get(headers=headers , url= url)
+    get2=BeautifulSoup(get.text, "html.parser")
+    get3=get2.find_all("ul", class_="ddc-list-column-2")
+    for get4 in get3:
+        get5=get4.get_text(strip=True)
+        relget2.extend(get5.split('\n'))
+    with open("Names_of_medicines", "w", encoding="utf-8") as file:
+        json.dump(relget2, file, ensure_ascii=False, indent=4)
+    return relget2
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+drug_name = Names_of_medicines(url, headers,relget2)
+Message_instructions = '''
+You are a query-generation assistant for a medical search engine.
+Your job is to generate EXACTLY 5 short, natural search queries that will
+return the best possible results when searched on medical reference sites
+(such as Drugs.com, MedlinePlus, RxList, or DailyMed) — one query per aspect
+listed below.
+
+Rules:
+- Output ONLY the 5 search queries, one per line, nothing else.
+- No explanations, no formatting, no quotation marks, no numbering, no extra words.
+- Each query must contain the drug name exactly as given, unmodified and untranslated.
+- Phrase each query the way it commonly appears on medical reference websites,
+  not a literal translation of the aspect name. For example:
+  - For usage: prefer "uses and dosage" over just "usage".
+  - For classification: prefer "drug class" over "classification".
+  - For mechanism of action: use "mechanism of action" (standard pharma term).
+  - For side effects: use "side effects" (standard term).
+  - For contraindications: prefer "contraindications and warnings" for broader coverage.
+- Keep each query short (3-6 words), specific, and suitable as a URL search parameter.
+- Do not merge multiple aspects into a single query.
+'''
+What_do_we_want_you_to_do= '''
+'''
+def generate_queries(drug_name):
+    ai = ''
+    for Names_of_medicines in [drug_name2 for drug_name2 in drug_name if drug_name2.strip() != '']:
+        ai += f'What are the uses and indications of {Names_of_medicines}?\n'
+        ai += f'What is the drug classification of {Names_of_medicines}?\n'
+        ai += f'What is the mechanism of action of {Names_of_medicines}?\n'
+        ai += f'What are the side effects of {Names_of_medicines}?\n'
+        ai += f'What are the contraindications and warnings associated with {Names_of_medicines}?\n'
+    return ai
+#------------------------------------------------------------------------------------
+ai=generate_queries(drug_name)
+query= []
+for wer in ai.split('\n'):
+        if wer.strip() != '':
+            query.append(wer.strip())
+        else:
+            break
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+def search_engine(query,num_results=10, start=1):
+    all_results = []
+    for one_a_question in [q for q in query if q.strip() != '']:
+        Answer = json.dumps(
+            {
+                "q": one_a_question,
+                "hl": 'en',
+                "num": 10
+            }
+        )
+        headers = {
+            'X-API-KEY': "api",
+            'Content-Type': 'application/json'
+        }
+        post_Question=requests.post('https://google.serper.dev/search',
+            headers=headers , data= Answer)
+        result = post_Question.json()
+        all_results.append(result)
+    with open("Drug information", "a", encoding="utf-8") as file:
+        json.dump(all_results, file, ensure_ascii=False, indent=4)   
+    return all_results 
+all_results=search_engine(query,num_results=10, start=1) 
+def Information_extraction(all_results):
+    for result in all_results:
+        if 'organic' in result:
+            print(result['organic'])
+        else:
+            print("Error:", result.get('message'), result.get('statusCode'))
+print(Information_extraction(all_results))
